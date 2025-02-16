@@ -10,7 +10,7 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: duplicate-metas
  * Domain Path: /languages
- * Version: 1.5
+ * Version: 1.6
  */
 
 // Load text domain
@@ -116,128 +116,6 @@ function duplicate_metas_page() {
     </style>
     <?php
 }
-
-
-/*function duplicate_metas() {
-    if ( isset( $_POST['old_meta'] ) && isset( $_POST['new_meta'] ) && isset( $_POST['post_type_to_replace']) ) {
-        $old_meta = sanitize_text_field( $_POST['old_meta'] );
-        $new_meta = sanitize_text_field( $_POST['new_meta'] );
-        $test_mode = isset($_POST['test_mode']); // Verifica si el checkbox de prueba está marcado
-
-        $args = array(
-            'post_type' => $_POST['post_type_to_replace'],
-            'posts_per_page' => -1,
-        );
-
-        $posts = get_posts( $args );
-
-        // Crear directorio logs si no existe
-        $log_dir = plugin_dir_path( __FILE__ ) . 'logs/';
-        if (!file_exists($log_dir)) {
-            mkdir($log_dir, 0755, true);
-        }
-
-        // Nombre del archivo CSV
-        $log_type = $test_mode ? 'TEST-' : ''; // Prefijo en caso de modo test
-        $log_file = $log_dir . $log_type . 'log-' . date('Y-m-d-H-i-s') . '.csv';
-
-        // Abrir el archivo CSV para escritura
-        $file = fopen($log_file, 'w');
-        if ($file) {
-            // Escribir encabezados
-            fputcsv($file, ['Post ID', 'Post Title', 'Meta Key Antiguo', 'Meta Key Nuevo', 'Valor Antiguo', 'Valor Nuevo', 'Acción']);
-
-            foreach ( $posts as $post ) {
-                $old_value = get_post_meta( $post->ID, $old_meta, true );
-                $new_value = get_post_meta( $post->ID, $new_meta, true );
-                $action = 'no duplicado';
-
-
-                // Caso especial para potencia-campodestacado
-                if ($_POST['new_meta'] === 'potencia-campodestacado' && empty($new_value)) {
-                    preg_match('/(\d+[,\.]?\d*)\s*CV/i', $old_value, $matches);
-                    if (!empty($matches[1])) {
-                        if (!$test_mode) {
-                            update_post_meta( $post->ID, $new_meta, $matches[1] );
-                        }
-                        $new_value = $matches[1];
-                        $action = 'duplicado correctamente';
-                    } else {
-                        $action = 'No se encontró un valor de CV en el meta original';
-                    }
-                } 
-                // Caso especial para peso-campodestacado
-                elseif ($_POST['new_meta'] === 'peso-campodestacado' && empty($new_value)) {
-                    $peso_lleno = get_post_meta( $post->ID, 'peso_lleno', true );
-                    $peso = get_post_meta( $post->ID, 'peso', true );
-                    $peso_en_vacio = get_post_meta( $post->ID, 'peso_en_vacio', true );
-                    $peso_en_seco = get_post_meta( $post->ID, 'peso_en_seco', true );
-
-                    if ($peso_lleno) {
-                        if (!$test_mode) {
-                            update_post_meta( $post->ID, $new_meta, $peso_lleno);
-                        }
-                        $new_value = $peso_lleno;
-                        $action = 'duplicado correctamente';
-                    } elseif ($peso) {
-                        if (!$test_mode) {
-                            update_post_meta( $post->ID, $new_meta, $peso );
-                        }
-                        $new_value = $peso;
-                        $action = 'duplicado correctamente';
-                    } elseif ($peso_en_vacio) {
-                        if (!$test_mode) {
-                            update_post_meta( $post->ID, $new_meta, $peso_en_vacio );
-                        }
-                        $new_value = $peso_en_vacio;
-                        $action = 'duplicado correctamente';
-                    } elseif ($peso_en_seco) {
-                        if (!$test_mode) {
-                            update_post_meta( $post->ID, $new_meta, $peso_en_seco );
-                        }
-                        $new_value = $peso_en_seco;
-                        $action = 'duplicado correctamente';
-                    } else {
-                        $action = 'No se encontró ningún valor de peso en los meta keys relacionados';
-                    }
-                } 
-                // Copia general de meta fields
-                elseif (!empty($old_value) && empty($new_value)) {
-                    if (!$test_mode) {
-                        update_post_meta( $post->ID, $new_meta, $old_value );
-                    }
-                    $new_value = $old_value;
-                    $action = 'duplicado correctamente';
-                } 
-                // Razones por las que no se duplicó
-                elseif (empty($old_value)) {
-                    $action = 'Meta antiguo vacío, no hay valor para duplicar';
-                } elseif (!empty($new_value)) {
-                    $action = 'Meta nuevo ya tiene un valor, no se sobrescribe';
-                } else {
-                    $action = 'Razón desconocida';
-                }
-
-                // Guardar log en el archivo CSV con la razón
-                fputcsv($file, [
-                    $post->ID,
-                    $post->post_title,
-                    $old_meta,
-                    $new_meta,
-                    $old_value,
-                    $new_value,
-                    $action
-                ]);
-            }
-
-            // Cerrar el archivo CSV
-            fclose($file);
-        }
-    }
-}
-
-add_action( 'admin_init', 'duplicate_metas' );
-*/
 
 // Agregar nueva página de logs al menú del plugin
 function duplicate_metas_logs_menu() {
