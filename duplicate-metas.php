@@ -129,7 +129,6 @@ function duplicate_metas_logs_menu() {
     );
 }
 add_action( 'admin_menu', 'duplicate_metas_logs_menu' );
-
 function duplicate_metas_logs_page() {
     $log_dir = plugin_dir_path(__FILE__) . 'logs/';
 
@@ -137,84 +136,77 @@ function duplicate_metas_logs_page() {
     if (isset($_GET['view']) && !empty($_GET['view'])) {
         $file_to_view = $log_dir . basename($_GET['view']);
         $selected_action = isset($_GET['filter_action']) ? sanitize_text_field($_GET['filter_action']) : '';
+        $filter_empty_new_meta = isset($_GET['filter_empty_new_meta']) ? sanitize_text_field($_GET['filter_empty_new_meta']) : '';
 
         if (file_exists($file_to_view)) {
             echo '<div class="wrap">';
             echo '<h1>' . __( 'Ver contenido del CSV', 'duplicate-metas' ) . '</h1>';
             echo '<a href="' . admin_url('admin.php?page=duplicate-metas-logs') . '" class="button button-secondary">' . __('Volver a los logs', 'duplicate-metas') . '</a>';
             
-            // Filtro por acción
+            // Formulario de filtros
             echo '<form method="get" style="margin-top: 10px;">';
             echo '<input type="hidden" name="page" value="duplicate-metas-logs">';
             echo '<input type="hidden" name="view" value="' . esc_attr($_GET['view']) . '">';
+
+            // Filtro por acción
             echo '<label for="filter_action"><strong>' . __('Filtrar por Acción:', 'duplicate-metas') . '</strong></label>';
             echo '<select name="filter_action" id="filter_action">';
             echo '<option value="">' . __('Mostrar Todo', 'duplicate-metas') . '</option>';
             echo '<option value="Duplicado correctamente" ' . selected($selected_action, "Duplicado correctamente", false) . '>' . __('Duplicado correctamente', 'duplicate-metas') . '</option>';
             echo '<option value="No duplicado" ' . selected($selected_action, "No duplicado", false) . '>' . __('No duplicado', 'duplicate-metas') . '</option>';
             echo '</select>';
+
+            // Filtro para "Nuevo Valor Vacío"
+            echo '<label for="filter_empty_new_meta"><strong>' . __('Mostrar solo vacíos:', 'duplicate-metas') . '</strong></label>';
+            echo '<select name="filter_empty_new_meta" id="filter_empty_new_meta">';
+            echo '<option value="">' . __('No filtrar', 'duplicate-metas') . '</option>';
+            echo '<option value="yes" ' . selected($filter_empty_new_meta, "yes", false) . '>' . __('Sí, solo vacíos', 'duplicate-metas') . '</option>';
+            echo '</select>';
+
             echo '<input type="submit" value="' . __('Filtrar', 'duplicate-metas') . '" class="button button-primary">';
             echo '</form>';
 
-            // Botón de exportación (ahora redirige a admin-post.php)
+            // Botón de exportación
             echo '<form method="post" action="' . admin_url('admin-post.php') . '" style="margin-top: 10px;">';
             echo '<input type="hidden" name="action" value="export_filtered_csv">';
             echo '<input type="hidden" name="view" value="' . esc_attr($_GET['view']) . '">';
             echo '<input type="hidden" name="filter_action" value="' . esc_attr($selected_action) . '">';
+            echo '<input type="hidden" name="filter_empty_new_meta" value="' . esc_attr($filter_empty_new_meta) . '">';
             echo '<input type="submit" value="' . __('Descargar CSV Filtrado', 'duplicate-metas') . '" class="button button-secondary">';
             echo '</form>';
 
-            // Contador de registros
-            $total_records = 0;
-            $filtered_records = 0;
-
-            // Primera pasada para contar registros
-            if (($handle = fopen($file_to_view, 'r')) !== FALSE) {
-                $is_header = true;
-                while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-                    if (!$is_header) {
-                        $total_records++;
-                    }
-                    if (!$is_header && (!$selected_action || strpos(end($data), $selected_action) !== false)) {
-                        $filtered_records++;
-                    }
-                    $is_header = false;
-                }
-                fclose($handle);
-            }
-
-            // Mostrar el contador de registros **antes** de la tabla
-            echo '<p style="margin-top: 10px; font-weight: bold;">';
-            if ($selected_action) {
-                echo __('Mostrando ', 'duplicate-metas') . $filtered_records . __(' de ', 'duplicate-metas') . $total_records . __(' registros filtrados.', 'duplicate-metas');
-            } else {
-                echo __('Mostrando todos los ', 'duplicate-metas') . $total_records . __(' registros.', 'duplicate-metas');
-            }
-            echo '</p>';
-
             echo '<table class="widefat fixed striped" style="margin-top: 10px;">';
+            echo '<thead><tr>';
+            echo '<th>' . __('Post ID', 'duplicate-metas') . '</th>';
+            echo '<th>' . __('Post Title', 'duplicate-metas') . '</th>';
+            echo '<th>' . __('Meta Key Antiguo', 'duplicate-metas') . '</th>';
+            echo '<th>' . __('Meta Key Nuevo', 'duplicate-metas') . '</th>';
+            echo '<th>' . __('Valor Antiguo', 'duplicate-metas') . '</th>';
+            echo '<th>' . __('Valor Nuevo', 'duplicate-metas') . '</th>';
+            echo '<th>' . __('Acción', 'duplicate-metas') . '</th>';
+            echo '</tr></thead>';
+            echo '<tbody>';
 
-            // Segunda pasada para mostrar datos
             if (($handle = fopen($file_to_view, 'r')) !== FALSE) {
                 $is_header = true;
                 while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
                     if ($is_header) {
-                        echo '<tr>';
-                        foreach ($data as $cell) {
-                            echo '<th>' . esc_html($cell) . '</th>';
-                        }
-                        echo '</tr>';
                         $is_header = false;
                         continue;
                     }
 
-                    // Aplicar filtro por acción si está seleccionado
+                    // Última columna = Acción, penúltima columna = Nuevo Valor
                     $action_column = end($data);
+                    $new_meta_value = prev($data);
+
+                    // Aplicar filtros
                     if ($selected_action && strpos($action_column, $selected_action) === false) {
                         continue;
                     }
+                    if ($filter_empty_new_meta === "yes" && !empty($new_meta_value)) {
+                        continue;
+                    }
 
-                    // Mostrar la fila si cumple con el filtro
                     echo '<tr>';
                     foreach ($data as $cell) {
                         echo '<td>' . esc_html($cell) . '</td>';
@@ -222,18 +214,59 @@ function duplicate_metas_logs_page() {
                     echo '</tr>';
                 }
                 fclose($handle);
-            } else {
-                echo '<p style="color: red;">' . __('Error al abrir el archivo CSV.', 'duplicate-metas') . '</p>';
             }
 
+            echo '</tbody>';
             echo '</table>';
             echo '</div>';
             return;
-        } else {
-            echo '<div class="error"><p>' . __( 'El archivo no existe o ha sido eliminado.', 'duplicate-metas' ) . '</p></div>';
         }
     }
+
+    // Listado de logs disponibles
+    $files = glob($log_dir . '*.csv');
+
+    echo '<div class="wrap">';
+    echo '<h1>' . __('Logs CSV', 'duplicate-metas') . '</h1>';
+    echo '<p>' . __('Aquí puedes descargar o visualizar los archivos de logs generados.', 'duplicate-metas') . '</p>';
+
+    echo '<table class="widefat fixed striped">';
+    echo '<thead><tr>';
+    echo '<th>' . __('Archivo', 'duplicate-metas') . '</th>';
+    echo '<th>' . __('Fecha de creación', 'duplicate-metas') . '</th>';
+    echo '<th>' . __('Acciones', 'duplicate-metas') . '</th>';
+    echo '</tr></thead>';
+    echo '<tbody>';
+
+    if (!empty($files)) {
+        usort($files, function ($a, $b) {
+            return filemtime($b) - filemtime($a);
+        });
+
+        foreach ($files as $file) {
+            $filename = basename($file);
+            $file_url = plugin_dir_url(__FILE__) . 'logs/' . $filename;
+            $file_time = date('Y-m-d H:i:s', filemtime($file));
+
+            echo "<tr>";
+            echo "<td><strong>{$filename}</strong></td>";
+            echo "<td>{$file_time}</td>";
+            echo "<td>";
+            echo "<a href='{$file_url}' class='button button-primary' download>" . __('Descargar', 'duplicate-metas') . "</a>";
+            echo "<a href='" . admin_url('admin.php?page=duplicate-metas-logs&view=' . urlencode($filename)) . "' class='button'>" . __('Ver', 'duplicate-metas') . "</a>";
+            echo "<a href='" . admin_url('admin.php?page=duplicate-metas-logs&delete=' . urlencode($filename)) . "' class='button button-secondary' onclick='return confirm(\"¿Seguro que quieres eliminar este archivo?\");'>" . __('Eliminar', 'duplicate-metas') . "</a>";
+            echo "</td>";
+            echo "</tr>";
+        }
+    } else {
+        echo "<tr><td colspan='3' style='text-align: center;'>" . __('No hay logs disponibles.', 'duplicate-metas') . "</td></tr>";
+    }
+
+    echo '</tbody>';
+    echo '</table>';
+    echo '</div>';
 }
+
 
 
 function duplicate_metas_enqueue_scripts($hook) {
@@ -268,6 +301,7 @@ add_action('admin_enqueue_scripts', 'duplicate_metas_enqueue_scripts');
 
 
 add_action('wp_ajax_duplicate_metas_ajax', 'duplicate_metas_ajax_callback');
+add_action('wp_ajax_duplicate_metas_ajax', 'duplicate_metas_ajax_callback');
 
 function duplicate_metas_ajax_callback() {
     try {
@@ -286,7 +320,7 @@ function duplicate_metas_ajax_callback() {
 
         $args = array(
             'post_type'      => $post_type,
-            'posts_per_page' => 100, // Procesar en lotes
+            'posts_per_page' => 100, // Procesamos en lotes de 100
             'paged'          => 1,
         );
 
@@ -324,20 +358,85 @@ function duplicate_metas_ajax_callback() {
                 $action = 'No duplicado';
                 $reason = '';
 
-                // Determinar la razón por la que no se duplicó
-                if (empty($old_value)) {
-                    $reason = 'Meta antiguo vacío';
-                } elseif (!empty($new_value)) {
+                // **1️ Prioridad: Si el nuevo meta ya tiene datos, no sobrescribimos**
+                if (!empty($new_value)) {
                     $reason = 'Meta nuevo ya tiene un valor';
-                } else {
-                    // Proceder con la actualización si aplica
+                }
+                // **2 Prioridad: Si el viejo meta no tiene datos, no hay nada que copiar**
+                elseif (empty($old_value)) {
+                    $reason = 'Meta antiguo vacío';
+                }
+                // **Caso especial: Extraer CV de "potencia-campodestacado"**
+                elseif ($new_meta === 'potencia-campodestacado') {
+                    preg_match('/(\d+[,\.]?\d*)\s*CV/i', $old_value, $matches);
+                    if (!empty($matches[1])) {
+                        if (!$test_mode) {
+                            update_post_meta($post->ID, $new_meta, $matches[1]);
+                        }
+                        $new_value = $matches[1];
+                        $action = 'Duplicado correctamente';
+                        $reason = 'CV extraído correctamente';
+                        $total_processed++;
+                    } else {
+                        $reason = 'No se encontró un valor válido en el meta original';
+                    }
+                }
+                // **Caso especial: Determinar peso en "peso-campodestacado"**
+                elseif ($new_meta === 'peso-campodestacado') {
+                    $peso_lleno = get_post_meta($post->ID, 'peso_lleno', true);
+                    $peso = get_post_meta($post->ID, 'peso', true);
+                    $peso_en_vacio = get_post_meta($post->ID, 'peso_en_vacio', true);
+                    $peso_en_seco = get_post_meta($post->ID, 'peso_en_seco', true);
+
+                    if ($peso_lleno) {
+                        if (!$test_mode) {
+                            update_post_meta($post->ID, $new_meta, $peso_lleno);
+                        }
+                        $new_value = $peso_lleno;
+                        $action = 'Duplicado correctamente';
+                        $reason = 'Valor tomado de peso_lleno';
+                        $total_processed++;
+                    } elseif ($peso) {
+                        if (!$test_mode) {
+                            update_post_meta($post->ID, $new_meta, $peso);
+                        }
+                        $new_value = $peso;
+                        $action = 'Duplicado correctamente';
+                        $reason = 'Valor tomado de peso';
+                        $total_processed++;
+                    } elseif ($peso_en_vacio) {
+                        if (!$test_mode) {
+                            update_post_meta($post->ID, $new_meta, $peso_en_vacio);
+                        }
+                        $new_value = $peso_en_vacio;
+                        $action = 'Duplicado correctamente';
+                        $reason = 'Valor tomado de peso_en_vacio';
+                        $total_processed++;
+                    } elseif ($peso_en_seco) {
+                        if (!$test_mode) {
+                            update_post_meta($post->ID, $new_meta, $peso_en_seco);
+                        }
+                        $new_value = $peso_en_seco;
+                        $action = 'Duplicado correctamente';
+                        $reason = 'Valor tomado de peso_en_seco';
+                        $total_processed++;
+                    } else {
+                        $reason = 'No se encontró un valor válido de peso';
+                    }
+                }
+                // **Caso general: Copia del meta si cumple las condiciones**
+                else {
                     if (!$test_mode) {
                         update_post_meta($post->ID, $new_meta, $old_value);
                     }
                     $new_value = $old_value;
                     $action = 'Duplicado correctamente';
-                    $reason = '';
                     $total_processed++;
+                }
+
+                //3 Prioridad final: Si no encaja en ninguna de las anteriores, "Razón desconocida"**
+                if ($action === 'No duplicado' && empty($reason)) {
+                    $reason = 'Razón desconocida';
                 }
 
                 // Guardar log en el archivo CSV con la razón
@@ -374,8 +473,9 @@ function duplicate_metas_ajax_callback() {
 }
 
 
-add_action('admin_post_export_filtered_csv', 'export_filtered_csv');
 
+add_action('admin_post_export_filtered_csv', 'export_filtered_csv');
+//Permitimos la descarga del nuevo fichero csv filtrado
 function export_filtered_csv() {
     if (!isset($_POST['view'])) {
         wp_die(__('Error: No se proporcionó un archivo CSV.', 'duplicate-metas'));
