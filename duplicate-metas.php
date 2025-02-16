@@ -10,7 +10,7 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: duplicate-metas
  * Domain Path: /languages
- * Version: 1.0
+ * Version: 1.5
  */
 
 // Load text domain
