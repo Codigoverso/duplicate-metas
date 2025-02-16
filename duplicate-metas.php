@@ -26,14 +26,13 @@ function duplicate_metas_menu() {
 
 add_action( 'admin_menu', 'duplicate_metas_menu' );
 
-// Page
 function duplicate_metas_page() {
     ?>
     <div class="wrap">
         <h1><?php _e('Duplicate Metas', 'duplicate-metas'); ?></h1>
         <p><?php _e('Seleccione el tipo de post y los campos meta que desea duplicar.', 'duplicate-metas'); ?></p>
 
-        <form method="post" action="" class="duplicate-metas-form">
+        <form id="duplicate-metas-form" method="post" class="duplicate-metas-form">
             <?php wp_nonce_field('duplicate_metas', 'duplicate_metas_nonce'); ?>
 
             <fieldset class="field-group">
@@ -59,10 +58,13 @@ function duplicate_metas_page() {
                     <input type="checkbox" name="test_mode" id="test_mode">
                     <label for="test_mode"><?php _e('Generar CSV de prueba sin modificar datos', 'duplicate-metas'); ?></label>
                 </div>
-
             </fieldset>
 
-            <input type="submit" value="<?php _e('Duplicar Metas', 'duplicate-metas'); ?>" class="button button-primary button-large">
+            <button type="button" id="sync-metas" class="button button-primary button-large"><?php _e('Ejecutar Sincronización', 'duplicate-metas'); ?></button>
+            <div id="sync-loader" style="display: none; margin-top: 10px;">
+                <img src="<?php echo esc_url(admin_url('images/spinner.gif')); ?>" alt="Cargando...">
+            </div>
+            <p id="sync-result"></p>
         </form>
     </div>
 
@@ -107,27 +109,16 @@ function duplicate_metas_page() {
         .checkbox-group input {
             margin-right: 10px;
         }
-        .button-primary {
-            background: #0073aa;
-            border: none;
-            padding: 12px 20px;
-            font-size: 16px;
+        #sync-result {
+            margin-top: 10px;
             font-weight: bold;
-            text-transform: uppercase;
-            border-radius: 5px;
-            cursor: pointer;
-            display: block;
-            width: 100%;
-            text-align: center;
-        }
-        .button-primary:hover {
-            background: #005177;
         }
     </style>
     <?php
 }
 
-function duplicate_metas() {
+
+/*function duplicate_metas() {
     if ( isset( $_POST['old_meta'] ) && isset( $_POST['new_meta'] ) && isset( $_POST['post_type_to_replace']) ) {
         $old_meta = sanitize_text_field( $_POST['old_meta'] );
         $new_meta = sanitize_text_field( $_POST['new_meta'] );
@@ -246,7 +237,7 @@ function duplicate_metas() {
 }
 
 add_action( 'admin_init', 'duplicate_metas' );
-
+*/
 
 // Agregar nueva página de logs al menú del plugin
 function duplicate_metas_logs_menu() {
@@ -359,4 +350,141 @@ function duplicate_metas_logs_page() {
         </table>
     </div>
     <?php
+}
+
+function duplicate_metas_enqueue_scripts($hook) {
+    if ($hook !== 'toplevel_page_duplicate-metas') {
+        return;
+    }
+
+    // Cargar CSS
+    wp_enqueue_style(
+        'duplicate-metas-css',
+        plugin_dir_url(__FILE__) . 'admin/css/duplicate-metas.css',
+        array(),
+        null
+    );
+
+    // Cargar JS
+    wp_enqueue_script(
+        'duplicate-metas-ajax',
+        plugin_dir_url(__FILE__) . 'admin/js/duplicate-metas.js',
+        array('jquery'),
+        null,
+        true
+    );
+
+    // Pasar variables de AJAX a JS
+    wp_localize_script('duplicate-metas-ajax', 'duplicateMetasAjax', array(
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('duplicate_metas')
+    ));
+}
+add_action('admin_enqueue_scripts', 'duplicate_metas_enqueue_scripts');
+
+
+add_action('wp_ajax_duplicate_metas_ajax', 'duplicate_metas_ajax_callback');
+
+function duplicate_metas_ajax_callback() {
+    try {
+        if (!isset($_POST['duplicate_metas_nonce']) || !wp_verify_nonce($_POST['duplicate_metas_nonce'], 'duplicate_metas')) {
+            throw new Exception('Error de seguridad: nonce inválido.');
+        }
+
+        if (empty($_POST['old_meta']) || empty($_POST['new_meta']) || empty($_POST['post_type_to_replace'])) {
+            throw new Exception('Faltan datos obligatorios para ejecutar la sincronización.');
+        }
+
+        $old_meta = sanitize_text_field($_POST['old_meta']);
+        $new_meta = sanitize_text_field($_POST['new_meta']);
+        $post_type = sanitize_text_field($_POST['post_type_to_replace']);
+        $test_mode = isset($_POST['test_mode']);
+
+        $args = array(
+            'post_type'      => $post_type,
+            'posts_per_page' => 100, // Procesar en lotes
+            'paged'          => 1,
+        );
+
+        $total_processed = 0;
+        $total_skipped = 0;
+
+        // Crear directorio logs si no existe
+        $log_dir = plugin_dir_path(__FILE__) . 'logs/';
+        if (!file_exists($log_dir)) {
+            mkdir($log_dir, 0755, true);
+        }
+
+        // Nombre del archivo CSV
+        $log_type = $test_mode ? 'TEST-' : '';
+        $log_file = $log_dir . $log_type . 'log-' . date('Y-m-d-H-i-s') . '.csv';
+
+        // Abrir el archivo CSV para escritura
+        $file = fopen($log_file, 'w');
+        if (!$file) {
+            throw new Exception('No se pudo crear el archivo de logs en: ' . $log_file);
+        }
+
+        // Escribir encabezados del CSV
+        fputcsv($file, ['Post ID', 'Post Title', 'Meta Key Antiguo', 'Meta Key Nuevo', 'Valor Antiguo', 'Valor Nuevo', 'Acción']);
+
+        do {
+            $posts = get_posts($args);
+            if (empty($posts)) {
+                break;
+            }
+
+            foreach ($posts as $post) {
+                $old_value = get_post_meta($post->ID, $old_meta, true);
+                $new_value = get_post_meta($post->ID, $new_meta, true);
+                $action = 'No duplicado';
+                $reason = '';
+
+                // Determinar la razón por la que no se duplicó
+                if (empty($old_value)) {
+                    $reason = 'Meta antiguo vacío';
+                } elseif (!empty($new_value)) {
+                    $reason = 'Meta nuevo ya tiene un valor';
+                } else {
+                    // Proceder con la actualización si aplica
+                    if (!$test_mode) {
+                        update_post_meta($post->ID, $new_meta, $old_value);
+                    }
+                    $new_value = $old_value;
+                    $action = 'Duplicado correctamente';
+                    $reason = '';
+                    $total_processed++;
+                }
+
+                // Guardar log en el archivo CSV con la razón
+                fputcsv($file, [
+                    $post->ID,
+                    $post->post_title,
+                    $old_meta,
+                    $new_meta,
+                    $old_value,
+                    $new_value,
+                    $action . ($reason ? " - $reason" : '')
+                ]);
+
+                if ($action === 'No duplicado') {
+                    $total_skipped++;
+                }
+            }
+
+            $args['paged']++;
+            sleep(1); // Pequeña pausa para reducir la carga en el servidor
+
+        } while (!empty($posts));
+
+        fclose($file);
+
+        wp_send_json_success(['message' => "Sincronización completada. Procesados: $total_processed, No duplicados: $total_skipped."]);
+
+    } catch (Exception $e) {
+        error_log('Error en duplicate_metas_ajax_callback: ' . $e->getMessage());
+        wp_send_json_error(['message' => 'Error en la sincronización: ' . $e->getMessage()]);
+    }
+
+    wp_die();
 }
