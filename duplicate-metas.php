@@ -27,42 +27,106 @@ function duplicate_metas_menu() {
 add_action( 'admin_menu', 'duplicate_metas_menu' );
 
 // Page
-
 function duplicate_metas_page() {
     ?>
     <div class="wrap">
-        <h2><?php _e( 'Duplicate Metas', 'duplicate-metas' ); ?></h2>
-        <form method="post" action="">
-            <?php wp_nonce_field( 'duplicate_metas', 'duplicate_metas_nonce' ); ?>
-            <label for="post_type_to_replace"><?php _e( 'Post type to replace', 'duplicate-metas' ); ?></label>
-            <select name="post_type_to_replace" id="post_type_to_replace">
-                <?php
-                $post_types = get_post_types( array( 'public' => true ), 'objects' );
-                foreach ( $post_types as $post_type ) {
-                    echo '<option value="' . $post_type->name . '">' . $post_type->label . '</option>';
-                }
-                ?>
-            </select>
-            <br>
-            <label for="old_meta"><?php _e( 'Old meta key', 'duplicate-metas' ); ?></label>
-            <input type="text" name="old_meta" id="old_meta" required>
-            <br>
-            <label for="new_meta"><?php _e( 'New meta key', 'duplicate-metas' ); ?></label>
-            <input type="text" name="new_meta" id="new_meta" required>
-            <br>
-            <!--Make backup checkbox-->
-            <label for="make_backup"><?php _e( 'Make backup', 'duplicate-metas' ); ?></label>
-            <input type="checkbox" name="make_backup" id="make_backup">
-            <br>
-            <input type="submit" value="<?php _e( 'Duplicate', 'duplicate-metas' ); ?>">
+        <h1><?php _e('Duplicate Metas', 'duplicate-metas'); ?></h1>
+        <p><?php _e('Seleccione el tipo de post y los campos meta que desea duplicar.', 'duplicate-metas'); ?></p>
 
+        <form method="post" action="" class="duplicate-metas-form">
+            <?php wp_nonce_field('duplicate_metas', 'duplicate_metas_nonce'); ?>
+
+            <fieldset class="field-group">
+                <legend><?php _e('Configuración de duplicación', 'duplicate-metas'); ?></legend>
+
+                <label for="post_type_to_replace"><strong><?php _e('Tipo de post:', 'duplicate-metas'); ?></strong></label>
+                <select name="post_type_to_replace" id="post_type_to_replace">
+                    <?php
+                    $post_types = get_post_types(array('public' => true), 'objects');
+                    foreach ($post_types as $post_type) {
+                        echo '<option value="' . esc_attr($post_type->name) . '">' . esc_html($post_type->label) . '</option>';
+                    }
+                    ?>
+                </select>
+
+                <label for="old_meta"><strong><?php _e('Meta Key antigua:', 'duplicate-metas'); ?></strong></label>
+                <input type="text" name="old_meta" id="old_meta" required placeholder="Ejemplo: old_meta_key">
+
+                <label for="new_meta"><strong><?php _e('Meta Key nueva:', 'duplicate-metas'); ?></strong></label>
+                <input type="text" name="new_meta" id="new_meta" required placeholder="Ejemplo: new_meta_key">
+
+                <div class="checkbox-group">
+                    <input type="checkbox" name="make_backup" id="make_backup">
+                    <label for="make_backup"><?php _e('Hacer una copia de seguridad antes de modificar.', 'duplicate-metas'); ?></label>
+                </div>
+            </fieldset>
+
+            <input type="submit" value="<?php _e('Duplicar Metas', 'duplicate-metas'); ?>" class="button button-primary button-large">
         </form>
     </div>
+
+    <style>
+        .duplicate-metas-form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin-top: 20px;
+        }
+        .field-group {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+        }
+        .field-group legend {
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .duplicate-metas-form label {
+            display: block;
+            font-weight: bold;
+            margin: 10px 0 5px;
+        }
+        .duplicate-metas-form input[type="text"],
+        .duplicate-metas-form select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .checkbox-group input {
+            margin-right: 10px;
+        }
+        .button-primary {
+            background: #0073aa;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 5px;
+            cursor: pointer;
+            display: block;
+            width: 100%;
+            text-align: center;
+        }
+        .button-primary:hover {
+            background: #005177;
+        }
+    </style>
     <?php
 }
 
 // Duplicate metas
-
 function duplicate_metas() {
     if ( isset( $_POST['old_meta'] ) && isset( $_POST['new_meta'] ) && isset( $_POST['post_type_to_replace']) ) {
         $old_meta = sanitize_text_field( $_POST['old_meta'] );
@@ -75,85 +139,149 @@ function duplicate_metas() {
 
         $posts = get_posts( $args );
 
-        //Make Log
-        $log = array();        
-        
-        foreach ( $posts as $post ) {
-            
-            $old_value = get_post_meta( $post->ID, $old_meta, true );
-
-        
-            if ( $_POST['make_backup'] ) {
-                $new_post_meta_data = get_post_meta( $post->ID,$new_meta );
-                if ( !empty( $new_post_meta_data ) ) {
-                    update_post_meta( $post->ID, $new_meta . '_backup_codigoverso', $new_post_meta_data );
-                }
-            }
-
-            if ($_POST['new_meta']==='potencia-campodestacado'  && empty( get_post_meta( $post->ID, $new_meta, true ) )){
-                preg_match('/(\d+[,\.]?\d*)\s*CV/i', $old_value, $matches);
-                update_post_meta( $post->ID, $new_meta, $matches[1] );
-                $log[] = array(
-                    'post_id' => $post->ID,
-                    'post_title' => $post->post_title,
-                    'old_meta' => $old_meta,
-                    'new_meta' => $new_meta,
-                    'old_value' => $old_value,
-                    'action' => 'duplicated',
-                );
-            }if ($_POST['new_meta']==='peso-campodestacado'  && empty( get_post_meta( $post->ID, $new_meta, true ) )){
-                $peso_lleno = get_post_meta( $post->ID, 'peso_lleno', true );
-                $peso = get_post_meta( $post->ID, 'peso', true );
-                $peso_en_vacio = get_post_meta( $post->ID, 'peso_en_vacio', true );
-                $peso_en_seco = get_post_meta( $post->ID, 'peso_en_seco', true );
-                if ($peso_lleno){
-                    update_post_meta( $post->ID, $new_meta, $peso_lleno);
-                }elseif ($peso){
-                    update_post_meta( $post->ID, $new_meta, $peso );
-                }elseif ($peso_en_vacio){
-                    update_post_meta( $post->ID, $new_meta, $peso_en_vacio );
-                }elseif ($peso_en_seco){
-                    update_post_meta( $post->ID, $new_meta, $peso_en_seco );
-                }
-                $log[] = array(
-                    'post_id' => $post->ID,
-                    'post_title' => $post->post_title,
-                    'old_meta' => $old_meta,
-                    'new_meta' => $new_meta,
-                    'old_value' => $old_value,
-                    'action' => 'duplicated',
-                );
-
-            }elseif ( $old_value && empty( get_post_meta( $post->ID, $new_meta, true ) ) ) {
-                update_post_meta( $post->ID, $new_meta, $old_value );
-                $log[] = array(
-                    'post_id' => $post->ID,
-                    'post_title' => $post->post_title,
-                    'old_meta' => $old_meta,
-                    'new_meta' => $new_meta,
-                    'old_value' => $old_value,
-                    'action' => 'duplicated',
-                );
-            }else{
-                $log[] = array(
-                    'post_id' => $post->ID,
-                    'post_title' => $post->post_title,
-                    'old_meta' => $old_meta,
-                    'new_meta' => $new_meta,
-                    'old_value' => $old_value,
-                    'new_value' => get_post_meta( $post->ID, $new_meta, true ),
-                    'action' => 'not duplicated',
-                );
-            }
-            
+        // Crear directorio logs si no existe
+        $log_dir = plugin_dir_path( __FILE__ ) . 'logs/';
+        if (!file_exists($log_dir)) {
+            mkdir($log_dir, 0755, true);
         }
-        
-        //save log in current plugin folder
-        $log_file = plugin_dir_path( __FILE__ ) . '/logs/log-' . date('Y-m-d-H-i-s') . '.json';
-        file_put_contents( $log_file, json_encode( $log ) );
-        
+
+        // Nombre del archivo CSV
+        $log_file = $log_dir . 'log-' . date('Y-m-d-H-i-s') . '.csv';
+
+        // Abrir el archivo CSV para escritura
+        $file = fopen($log_file, 'w');
+        if ($file) {
+            // Escribir encabezados
+            fputcsv($file, ['Post ID', 'Post Title', 'Nombre Meta Antiguo', 'Nombre Nuevo Meta', 'Valor Meta', 'Accion']);
+
+            foreach ( $posts as $post ) {
+                $old_value = get_post_meta( $post->ID, $old_meta, true );
+                $action = 'not duplicated';
+
+                if ( $_POST['make_backup'] ) {
+                    $new_post_meta_data = get_post_meta( $post->ID,$new_meta );
+                    if ( !empty( $new_post_meta_data ) ) {
+                        update_post_meta( $post->ID, $new_meta . '_backup_codigoverso', $new_post_meta_data );
+                    }
+                }
+
+                if ($_POST['new_meta']==='potencia-campodestacado' && empty(get_post_meta($post->ID, $new_meta, true))){
+                    preg_match('/(\d+[,\.]?\d*)\s*CV/i', $old_value, $matches);
+                    if (!empty($matches[1])) {
+                        update_post_meta( $post->ID, $new_meta, $matches[1] );
+                        $action = 'duplicated';
+                    }
+                } elseif ($_POST['new_meta']==='peso-campodestacado' && empty(get_post_meta($post->ID, $new_meta, true))) {
+                    $peso_lleno = get_post_meta( $post->ID, 'peso_lleno', true );
+                    $peso = get_post_meta( $post->ID, 'peso', true );
+                    $peso_en_vacio = get_post_meta( $post->ID, 'peso_en_vacio', true );
+                    $peso_en_seco = get_post_meta( $post->ID, 'peso_en_seco', true );
+
+                    $new_value = '';
+                    if ($peso_lleno) {
+                        update_post_meta( $post->ID, $new_meta, $peso_lleno);
+                        $new_value = $peso_lleno;
+                    } elseif ($peso) {
+                        update_post_meta( $post->ID, $new_meta, $peso );
+                        $new_value = $peso;
+                    } elseif ($peso_en_vacio) {
+                        update_post_meta( $post->ID, $new_meta, $peso_en_vacio );
+                        $new_value = $peso_en_vacio;
+                    } elseif ($peso_en_seco) {
+                        update_post_meta( $post->ID, $new_meta, $peso_en_seco );
+                        $new_value = $peso_en_seco;
+                    }
+
+                    if ($new_value) {
+                        $action = 'duplicated';
+                    }
+                } elseif ($old_value && empty(get_post_meta($post->ID, $new_meta, true))) {
+                    update_post_meta( $post->ID, $new_meta, $old_value );
+                    $action = 'duplicated';
+                }
+
+                // Guardar log en el archivo CSV
+                fputcsv($file, [
+                    $post->ID,
+                    $post->post_title,
+                    $old_meta,
+                    $new_meta,
+                    get_post_meta( $post->ID, $new_meta, true ),
+                    $action
+                ]);
+            }
+
+            // Cerrar el archivo CSV
+            fclose($file);
+        }
     }
 }
 
 add_action( 'admin_init', 'duplicate_metas' );
 
+// Agregar nueva página de logs al menú del plugin
+function duplicate_metas_logs_menu() {
+    add_submenu_page(
+        'duplicate-metas',
+        __( 'Logs CSV', 'duplicate-metas' ),
+        __( 'Logs', 'duplicate-metas' ),
+        'manage_options',
+        'duplicate-metas-logs',
+        'duplicate_metas_logs_page'
+    );
+}
+add_action( 'admin_menu', 'duplicate_metas_logs_menu' );
+
+// Página de logs CSV
+function duplicate_metas_logs_page() {
+    $log_dir = plugin_dir_path(__FILE__) . 'logs/';
+
+    // Eliminar archivo si se solicita
+    if (isset($_GET['delete']) && !empty($_GET['delete'])) {
+        $file_to_delete = $log_dir . basename($_GET['delete']);
+        if (file_exists($file_to_delete)) {
+            unlink($file_to_delete);
+            echo '<div class="updated"><p>' . __( 'Archivo eliminado correctamente.', 'duplicate-metas' ) . '</p></div>';
+        }
+    }
+
+    // Obtener lista de archivos CSV en la carpeta logs
+    $files = glob($log_dir . '*.csv');
+    
+    ?>
+    <div class="wrap">
+        <h2><?php _e('Logs CSV', 'duplicate-metas'); ?></h2>
+        <p><?php _e('Aquí puedes descargar los archivos de logs generados.', 'duplicate-metas'); ?></p>
+        <table class="widefat">
+            <thead>
+                <tr>
+                    <th><?php _e('Archivo', 'duplicate-metas'); ?></th>
+                    <th><?php _e('Fecha de creación', 'duplicate-metas'); ?></th>
+                    <th><?php _e('Acciones', 'duplicate-metas'); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php
+                if (!empty($files)) {
+                    foreach ($files as $file) {
+                        $filename = basename($file);
+                        $file_url = plugin_dir_url(__FILE__) . 'logs/' . $filename;
+                        $file_time = date('Y-m-d H:i:s', filemtime($file));
+                        echo "<tr>
+                                <td>{$filename}</td>
+                                <td>{$file_time}</td>
+                                <td>
+                                    <a href='{$file_url}' class='button' download>" . __('Descargar', 'duplicate-metas') . "</a>
+                                    <a href='" . admin_url('admin.php?page=duplicate-metas-logs&delete=' . $filename) . "' class='button button-danger' onclick='return confirm(\"¿Seguro que quieres eliminar este archivo?\");'>" . __('Eliminar', 'duplicate-metas') . "</a>
+                                </td>
+                              </tr>";
+                    }
+                } else {
+                    echo "<tr><td colspan='3'>" . __('No hay logs disponibles.', 'duplicate-metas') . "</td></tr>";
+                }
+                ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+}
