@@ -136,27 +136,90 @@ function duplicate_metas_logs_page() {
     // Verificar si se seleccionó un archivo para visualizar
     if (isset($_GET['view']) && !empty($_GET['view'])) {
         $file_to_view = $log_dir . basename($_GET['view']);
+        $selected_action = isset($_GET['filter_action']) ? sanitize_text_field($_GET['filter_action']) : '';
 
         if (file_exists($file_to_view)) {
             echo '<div class="wrap">';
             echo '<h1>' . __( 'Ver contenido del CSV', 'duplicate-metas' ) . '</h1>';
             echo '<a href="' . admin_url('admin.php?page=duplicate-metas-logs') . '" class="button button-secondary">' . __('Volver a los logs', 'duplicate-metas') . '</a>';
-            echo '<table class="widefat fixed striped" style="margin-top: 20px;">';
+            
+            // Filtro por acción
+            echo '<form method="get" style="margin-top: 10px;">';
+            echo '<input type="hidden" name="page" value="duplicate-metas-logs">';
+            echo '<input type="hidden" name="view" value="' . esc_attr($_GET['view']) . '">';
+            echo '<label for="filter_action"><strong>' . __('Filtrar por Acción:', 'duplicate-metas') . '</strong></label>';
+            echo '<select name="filter_action" id="filter_action">';
+            echo '<option value="">' . __('Mostrar Todo', 'duplicate-metas') . '</option>';
+            echo '<option value="Duplicado correctamente" ' . selected($selected_action, "Duplicado correctamente", false) . '>' . __('Duplicado correctamente', 'duplicate-metas') . '</option>';
+            echo '<option value="No duplicado" ' . selected($selected_action, "No duplicado", false) . '>' . __('No duplicado', 'duplicate-metas') . '</option>';
+            echo '</select>';
+            echo '<input type="submit" value="' . __('Filtrar', 'duplicate-metas') . '" class="button button-primary">';
+            echo '</form>';
 
-            // Abrir archivo CSV y mostrar su contenido
+            // Botón de exportación (ahora redirige a admin-post.php)
+            echo '<form method="post" action="' . admin_url('admin-post.php') . '" style="margin-top: 10px;">';
+            echo '<input type="hidden" name="action" value="export_filtered_csv">';
+            echo '<input type="hidden" name="view" value="' . esc_attr($_GET['view']) . '">';
+            echo '<input type="hidden" name="filter_action" value="' . esc_attr($selected_action) . '">';
+            echo '<input type="submit" value="' . __('Descargar CSV Filtrado', 'duplicate-metas') . '" class="button button-secondary">';
+            echo '</form>';
+
+            // Contador de registros
+            $total_records = 0;
+            $filtered_records = 0;
+
+            // Primera pasada para contar registros
             if (($handle = fopen($file_to_view, 'r')) !== FALSE) {
                 $is_header = true;
                 while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                    if (!$is_header) {
+                        $total_records++;
+                    }
+                    if (!$is_header && (!$selected_action || strpos(end($data), $selected_action) !== false)) {
+                        $filtered_records++;
+                    }
+                    $is_header = false;
+                }
+                fclose($handle);
+            }
+
+            // Mostrar el contador de registros **antes** de la tabla
+            echo '<p style="margin-top: 10px; font-weight: bold;">';
+            if ($selected_action) {
+                echo __('Mostrando ', 'duplicate-metas') . $filtered_records . __(' de ', 'duplicate-metas') . $total_records . __(' registros filtrados.', 'duplicate-metas');
+            } else {
+                echo __('Mostrando todos los ', 'duplicate-metas') . $total_records . __(' registros.', 'duplicate-metas');
+            }
+            echo '</p>';
+
+            echo '<table class="widefat fixed striped" style="margin-top: 10px;">';
+
+            // Segunda pasada para mostrar datos
+            if (($handle = fopen($file_to_view, 'r')) !== FALSE) {
+                $is_header = true;
+                while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                    if ($is_header) {
+                        echo '<tr>';
+                        foreach ($data as $cell) {
+                            echo '<th>' . esc_html($cell) . '</th>';
+                        }
+                        echo '</tr>';
+                        $is_header = false;
+                        continue;
+                    }
+
+                    // Aplicar filtro por acción si está seleccionado
+                    $action_column = end($data);
+                    if ($selected_action && strpos($action_column, $selected_action) === false) {
+                        continue;
+                    }
+
+                    // Mostrar la fila si cumple con el filtro
                     echo '<tr>';
                     foreach ($data as $cell) {
-                        if ($is_header) {
-                            echo '<th>' . esc_html($cell) . '</th>';
-                        } else {
-                            echo '<td>' . esc_html($cell) . '</td>';
-                        }
+                        echo '<td>' . esc_html($cell) . '</td>';
                     }
                     echo '</tr>';
-                    $is_header = false;
                 }
                 fclose($handle);
             } else {
@@ -170,65 +233,8 @@ function duplicate_metas_logs_page() {
             echo '<div class="error"><p>' . __( 'El archivo no existe o ha sido eliminado.', 'duplicate-metas' ) . '</p></div>';
         }
     }
-
-    // Eliminar archivo si se solicita
-    if (isset($_GET['delete']) && !empty($_GET['delete'])) {
-        $file_to_delete = $log_dir . basename($_GET['delete']);
-        if (file_exists($file_to_delete)) {
-            unlink($file_to_delete);
-            echo '<div class="updated"><p>' . __( 'Archivo eliminado correctamente.', 'duplicate-metas' ) . '</p></div>';
-        } else {
-            echo '<div class="error"><p>' . __( 'No se pudo eliminar el archivo. Puede que ya haya sido eliminado.', 'duplicate-metas' ) . '</p></div>';
-        }
-    }
-
-    // Obtener lista de archivos CSV en la carpeta logs y ordenarlos por fecha descendente
-    $files = glob($log_dir . '*.csv');
-    if (!empty($files)) {
-        usort($files, function($a, $b) {
-            return filemtime($b) - filemtime($a); // Ordena por fecha de modificación descendente
-        });
-    }
-
-    ?>
-    <div class="wrap">
-        <h1><?php _e('Logs CSV', 'duplicate-metas'); ?></h1>
-        <p><?php _e('Aquí puedes descargar o visualizar los archivos de logs generados.', 'duplicate-metas'); ?></p>
-
-        <table class="widefat fixed striped">
-            <thead>
-                <tr>
-                    <th style="width: 40%;"><?php _e('Archivo', 'duplicate-metas'); ?></th>
-                    <th style="width: 30%;"><?php _e('Fecha de creación', 'duplicate-metas'); ?></th>
-                    <th style="width: 30%;"><?php _e('Acciones', 'duplicate-metas'); ?></th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                if (!empty($files)) {
-                    foreach ($files as $file) {
-                        $filename = basename($file);
-                        $file_url = plugin_dir_url(__FILE__) . 'logs/' . $filename;
-                        $file_time = date('Y-m-d H:i:s', filemtime($file));
-                        echo "<tr>
-                                <td><strong>{$filename}</strong></td>
-                                <td>{$file_time}</td>
-                                <td>
-                                    <a href='{$file_url}' class='button button-primary' download>" . __('Descargar', 'duplicate-metas') . "</a>
-                                    <a href='" . admin_url('admin.php?page=duplicate-metas-logs&view=' . urlencode($filename)) . "' class='button'>" . __('Ver', 'duplicate-metas') . "</a>
-                                    <a href='" . admin_url('admin.php?page=duplicate-metas-logs&delete=' . urlencode($filename)) . "' class='button button-secondary' onclick='return confirm(\"¿Seguro que quieres eliminar este archivo?\");'>" . __('Eliminar', 'duplicate-metas') . "</a>
-                                </td>
-                              </tr>";
-                    }
-                } else {
-                    echo "<tr><td colspan='3' style='text-align: center;'>" . __('No hay logs disponibles.', 'duplicate-metas') . "</td></tr>";
-                }
-                ?>
-            </tbody>
-        </table>
-    </div>
-    <?php
 }
+
 
 function duplicate_metas_enqueue_scripts($hook) {
     if ($hook !== 'toplevel_page_duplicate-metas') {
@@ -365,4 +371,56 @@ function duplicate_metas_ajax_callback() {
     }
 
     wp_die();
+}
+
+
+add_action('admin_post_export_filtered_csv', 'export_filtered_csv');
+
+function export_filtered_csv() {
+    if (!isset($_POST['view'])) {
+        wp_die(__('Error: No se proporcionó un archivo CSV.', 'duplicate-metas'));
+    }
+
+    $log_dir = plugin_dir_path(__FILE__) . 'logs/';
+    $file_to_view = $log_dir . basename($_POST['view']);
+    $selected_action = isset($_POST['filter_action']) ? sanitize_text_field($_POST['filter_action']) : '';
+
+    if (!file_exists($file_to_view)) {
+        wp_die(__('Error: El archivo CSV no existe.', 'duplicate-metas'));
+    }
+
+    // Definir nombre del archivo de descarga
+    $filename = 'filtered-' . basename($_POST['view']);
+
+    // Configurar headers para descarga
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    $output = fopen('php://output', 'w');
+
+    if (($handle = fopen($file_to_view, 'r')) !== FALSE) {
+        $is_header = true;
+        while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+            if ($is_header) {
+                fputcsv($output, $data); // Escribir encabezado
+                $is_header = false;
+                continue;
+            }
+
+            // Aplicar filtro por acción si está seleccionado
+            $action_column = end($data);
+            if ($selected_action && strpos($action_column, $selected_action) === false) {
+                continue;
+            }
+
+            // Escribir la fila en el CSV de salida
+            fputcsv($output, $data);
+        }
+        fclose($handle);
+    }
+
+    fclose($output);
+    exit;
 }
