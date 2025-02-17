@@ -208,7 +208,7 @@ function duplicate_metas_logs_page() {
             echo "<td>";
             echo "<a href='{$file_url}' class='button button-primary' download>" . __('Descargar', 'duplicate-metas') . "</a>";
             echo "<a href='" . admin_url('admin.php?page=duplicate-metas-logs&view=' . urlencode($filename)) . "' class='button'>" . __('Ver', 'duplicate-metas') . "</a>";
-            echo "<a href='" . admin_url('admin.php?page=duplicate-metas-logs&delete=' . urlencode($filename)) . "' class='button button-secondary' onclick='return confirm(\"¿Seguro que quieres eliminar este archivo?\");'>" . __('Eliminar', 'duplicate-metas') . "</a>";
+            echo "<a href='" . admin_url('admin-post.php?action=delete_csv_log&file=' . urlencode($filename)) . "' class='button button-secondary' onclick='return confirm(\"¿Seguro que quieres eliminar este archivo?\");'>" . __('Eliminar', 'duplicate-metas') . "</a>";
             echo "</td>";
             echo "</tr>";
         }
@@ -311,16 +311,8 @@ function duplicate_metas_ajax_callback() {
                 $action = 'No duplicado';
                 $reason = '';
 
-                // **1️ Prioridad: Si el nuevo meta ya tiene datos, no sobrescribimos**
-                if (!empty($new_value)) {
-                    $reason = 'Meta nuevo ya tiene un valor';
-                }
-                // **2 Prioridad: Si el viejo meta no tiene datos, no hay nada que copiar**
-                elseif (empty($old_value)) {
-                    $reason = 'Meta antiguo vacío';
-                }
                 // **Caso especial: Extraer CV de "potencia-campodestacado"**
-                elseif ($new_meta === 'potencia-campodestacado') {
+                if ($new_meta === 'potencia-campodestacado') {
                     preg_match('/(\d+[,\.]?\d*)\s*CV/i', $old_value, $matches);
                     if (!empty($matches[1])) {
                         if (!$test_mode) {
@@ -345,6 +337,7 @@ function duplicate_metas_ajax_callback() {
                         if (!$test_mode) {
                             update_post_meta($post->ID, $new_meta, $peso_lleno);
                         }
+                        $old_value = $peso_lleno;
                         $new_value = $peso_lleno;
                         $action = 'Duplicado correctamente';
                         $reason = 'Valor tomado de peso_lleno';
@@ -353,6 +346,7 @@ function duplicate_metas_ajax_callback() {
                         if (!$test_mode) {
                             update_post_meta($post->ID, $new_meta, $peso);
                         }
+                        $old_value = $peso;
                         $new_value = $peso;
                         $action = 'Duplicado correctamente';
                         $reason = 'Valor tomado de peso';
@@ -361,6 +355,7 @@ function duplicate_metas_ajax_callback() {
                         if (!$test_mode) {
                             update_post_meta($post->ID, $new_meta, $peso_en_vacio);
                         }
+                        $old_value = $peso_en_vacio;
                         $new_value = $peso_en_vacio;
                         $action = 'Duplicado correctamente';
                         $reason = 'Valor tomado de peso_en_vacio';
@@ -369,6 +364,7 @@ function duplicate_metas_ajax_callback() {
                         if (!$test_mode) {
                             update_post_meta($post->ID, $new_meta, $peso_en_seco);
                         }
+                        $old_value = $peso_en_seco;
                         $new_value = $peso_en_seco;
                         $action = 'Duplicado correctamente';
                         $reason = 'Valor tomado de peso_en_seco';
@@ -387,6 +383,15 @@ function duplicate_metas_ajax_callback() {
                     $total_processed++;
                 }
 
+
+                // **1️ Prioridad: Si el nuevo meta ya tiene datos, no sobrescribimos**
+                if (!empty($new_value)) {
+                    $reason = 'Meta nuevo ya tiene un valor';
+                }
+                // **2 Prioridad: Si el viejo meta no tiene datos, no hay nada que copiar**
+                elseif (empty($old_value)) {
+                    $reason = 'Meta antiguo vacío';
+                }
                 //3 Prioridad final: Si no encaja en ninguna de las anteriores, "Razón desconocida"**
                 if ($action === 'No duplicado' && empty($reason)) {
                     $reason = 'Razón desconocida';
@@ -486,4 +491,31 @@ function export_filtered_csv() {
 
     fclose($output);
     exit;
+}
+
+add_action('admin_post_delete_csv_log', 'delete_csv_log');
+
+function delete_csv_log() {
+    if (!current_user_can('manage_options')) {
+        wp_die(__('No tienes permisos para eliminar archivos.', 'duplicate-metas'));
+    }
+
+    if (!isset($_GET['file']) || empty($_GET['file'])) {
+        wp_die(__('Error: No se proporcionó un archivo para eliminar.', 'duplicate-metas'));
+    }
+
+    $log_dir = plugin_dir_path(__FILE__) . 'logs/';
+    $file_to_delete = $log_dir . basename($_GET['file']);
+
+    if (!file_exists($file_to_delete)) {
+        wp_die(__('Error: El archivo CSV no existe.', 'duplicate-metas'));
+    }
+
+    // Intentar eliminar el archivo
+    if (unlink($file_to_delete)) {
+        wp_redirect(admin_url('admin.php?page=duplicate-metas-logs&message=deleted'));
+        exit;
+    } else {
+        wp_die(__('Error al intentar eliminar el archivo.', 'duplicate-metas'));
+    }
 }
