@@ -10,7 +10,7 @@
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: duplicate-metas
  * Domain Path: /languages
- * Version: 1.7
+ * Version: 1.8
  */
 
 // Load text domain
@@ -67,53 +67,6 @@ function duplicate_metas_page() {
             <p id="sync-result"></p>
         </form>
     </div>
-
-    <style>
-        .duplicate-metas-form {
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            max-width: 600px;
-            margin-top: 20px;
-        }
-        .field-group {
-            border: 1px solid #ddd;
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 6px;
-        }
-        .field-group legend {
-            font-weight: bold;
-            font-size: 14px;
-        }
-        .duplicate-metas-form label {
-            display: block;
-            font-weight: bold;
-            margin: 10px 0 5px;
-        }
-        .duplicate-metas-form input[type="text"],
-        .duplicate-metas-form select {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            margin: 10px 0;
-        }
-        .checkbox-group input {
-            margin-right: 10px;
-        }
-        #sync-result {
-            margin-top: 10px;
-            font-weight: bold;
-        }
-    </style>
     <?php
 }
 
@@ -129,6 +82,7 @@ function duplicate_metas_logs_menu() {
     );
 }
 add_action( 'admin_menu', 'duplicate_metas_logs_menu' );
+
 function duplicate_metas_logs_page() {
     $log_dir = plugin_dir_path(__FILE__) . 'logs/';
 
@@ -166,7 +120,7 @@ function duplicate_metas_logs_page() {
             echo '<input type="submit" value="' . __('Filtrar', 'duplicate-metas') . '" class="button button-primary">';
             echo '</form>';
 
-            // Botón de exportación
+            // Botón de exportación con los filtros aplicados
             echo '<form method="post" action="' . admin_url('admin-post.php') . '" style="margin-top: 10px;">';
             echo '<input type="hidden" name="action" value="export_filtered_csv">';
             echo '<input type="hidden" name="view" value="' . esc_attr($_GET['view']) . '">';
@@ -300,7 +254,6 @@ function duplicate_metas_enqueue_scripts($hook) {
 add_action('admin_enqueue_scripts', 'duplicate_metas_enqueue_scripts');
 
 
-add_action('wp_ajax_duplicate_metas_ajax', 'duplicate_metas_ajax_callback');
 add_action('wp_ajax_duplicate_metas_ajax', 'duplicate_metas_ajax_callback');
 
 function duplicate_metas_ajax_callback() {
@@ -476,6 +429,7 @@ function duplicate_metas_ajax_callback() {
 
 add_action('admin_post_export_filtered_csv', 'export_filtered_csv');
 //Permitimos la descarga del nuevo fichero csv filtrado
+
 function export_filtered_csv() {
     if (!isset($_POST['view'])) {
         wp_die(__('Error: No se proporcionó un archivo CSV.', 'duplicate-metas'));
@@ -484,6 +438,7 @@ function export_filtered_csv() {
     $log_dir = plugin_dir_path(__FILE__) . 'logs/';
     $file_to_view = $log_dir . basename($_POST['view']);
     $selected_action = isset($_POST['filter_action']) ? sanitize_text_field($_POST['filter_action']) : '';
+    $filter_empty_new_meta = isset($_POST['filter_empty_new_meta']) ? sanitize_text_field($_POST['filter_empty_new_meta']) : '';
 
     if (!file_exists($file_to_view)) {
         wp_die(__('Error: El archivo CSV no existe.', 'duplicate-metas'));
@@ -509,9 +464,17 @@ function export_filtered_csv() {
                 continue;
             }
 
-            // Aplicar filtro por acción si está seleccionado
+            // Última columna = Acción, penúltima columna = Nuevo Valor
             $action_column = end($data);
+            $new_meta_value = prev($data);
+
+            // Aplicar filtro por acción
             if ($selected_action && strpos($action_column, $selected_action) === false) {
+                continue;
+            }
+
+            // Aplicar filtro de "Nuevo Valor Vacío"
+            if ($filter_empty_new_meta === "yes" && !empty($new_meta_value)) {
                 continue;
             }
 
