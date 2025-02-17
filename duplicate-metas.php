@@ -133,6 +133,7 @@ function duplicate_metas_logs_page() {
             echo '<thead><tr>';
             echo '<th>' . __('Post ID', 'duplicate-metas') . '</th>';
             echo '<th>' . __('Post Title', 'duplicate-metas') . '</th>';
+            echo '<th>' . __('Post Url', 'duplicate-metas') . '</th>';
             echo '<th>' . __('Meta Key Antiguo', 'duplicate-metas') . '</th>';
             echo '<th>' . __('Meta Key Nuevo', 'duplicate-metas') . '</th>';
             echo '<th>' . __('Valor Antiguo', 'duplicate-metas') . '</th>';
@@ -297,7 +298,7 @@ function duplicate_metas_ajax_callback() {
         }
 
         // Escribir encabezados del CSV
-        fputcsv($file, ['Post ID', 'Post Title', 'Meta Key Antiguo', 'Meta Key Nuevo', 'Valor Antiguo', 'Valor Nuevo', 'Acción']);
+        fputcsv($file, ['Post ID', 'Post Title','Post Url', 'Meta Key Antiguo', 'Meta Key Nuevo', 'Valor Antiguo', 'Valor Nuevo', 'Acción']);
 
         do {
             $posts = get_posts($args);
@@ -323,6 +324,7 @@ function duplicate_metas_ajax_callback() {
                         $reason = 'CV extraído correctamente';
                         $total_processed++;
                     } else {
+                        $action = 'No duplicado';
                         $reason = 'No se encontró un valor válido en el meta original';
                     }
                 }
@@ -370,11 +372,10 @@ function duplicate_metas_ajax_callback() {
                         $reason = 'Valor tomado de peso_en_seco';
                         $total_processed++;
                     } else {
+                        $action = 'No duplicado';
                         $reason = 'No se encontró un valor válido de peso';
                     }
-                }
-                // **Caso general: Copia del meta si cumple las condiciones**
-                else {
+                }else {
                     if (!$test_mode) {
                         update_post_meta($post->ID, $new_meta, $old_value);
                     }
@@ -401,6 +402,7 @@ function duplicate_metas_ajax_callback() {
                 fputcsv($file, [
                     $post->ID,
                     $post->post_title,
+                    get_permalink($post->ID),
                     $old_meta,
                     $new_meta,
                     $old_value,
