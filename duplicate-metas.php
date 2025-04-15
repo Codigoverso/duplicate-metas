@@ -315,7 +315,7 @@ function duplicate_metas_ajax_callback() {
                 // **Caso especial: Extraer CV de "potencia-campodestacado"**
                 if ($new_meta === 'potencia-campodestacado') {
                     preg_match('/(\d+[,\.]?\d*)\s*CV/i', $old_value, $matches);
-                    if (!empty($matches[1])) {
+                    if (!empty($matches[1]) && empty($new_value)) {
                         if (!$test_mode) {
                             update_post_meta($post->ID, $new_meta, $matches[1]);
                         }
@@ -323,7 +323,17 @@ function duplicate_metas_ajax_callback() {
                         $action = 'Duplicado correctamente';
                         $reason = 'CV extraído correctamente';
                         $total_processed++;
-                    } else {
+                    }elseif(empty($new_value) && empty($old_value)) {
+                        $new_value = 1;
+                        if (!$test_mode) {
+                            update_post_meta($post->ID, $new_meta, $new_value);
+                        }
+                        $action = 'Duplicado correctamente';
+                        $reason = 'Valor por defecto asignado';
+                    }elseif(!empty($new_value)){
+                        $action = 'No duplicado';
+                        $reason = 'Ya tenia un valor asignado';
+                    }else{
                         $action = 'No duplicado';
                         $reason = 'No se encontró un valor válido en el meta original';
                     }
@@ -334,69 +344,85 @@ function duplicate_metas_ajax_callback() {
                     $peso = get_post_meta($post->ID, 'peso', true);
                     $peso_en_vacio = get_post_meta($post->ID, 'peso_en_vacio', true);
                     $peso_en_seco = get_post_meta($post->ID, 'peso_en_seco', true);
+                    if(empty($new_value)) {
+                        if ($peso_lleno) {
+                            if (!$test_mode) {
+                                update_post_meta($post->ID, $new_meta, $peso_lleno);
+                            }
+                            $old_value = $peso_lleno;
+                            $new_value = $peso_lleno;
+                            $action = 'Duplicado correctamente';
+                            $reason = 'Valor tomado de peso_lleno';
+                            $total_processed++;
+                        } elseif ($peso) {
+                            if (!$test_mode) {
+                                update_post_meta($post->ID, $new_meta, $peso);
+                            }
+                            $old_value = $peso;
+                            $new_value = $peso;
+                            $action = 'Duplicado correctamente';
+                            $reason = 'Valor tomado de peso';
+                            $total_processed++;
+                        } elseif ($peso_en_vacio) {
+                            if (!$test_mode) {
+                                update_post_meta($post->ID, $new_meta, $peso_en_vacio);
+                            }
+                            $old_value = $peso_en_vacio;
+                            $new_value = $peso_en_vacio;
+                            $action = 'Duplicado correctamente';
+                            $reason = 'Valor tomado de peso_en_vacio';
+                            $total_processed++;
+                        } elseif ($peso_en_seco) {
+                            if (!$test_mode) {
+                                update_post_meta($post->ID, $new_meta, $peso_en_seco);
+                            }
+                            $old_value = $peso_en_seco;
+                            $new_value = $peso_en_seco;
+                            $action = 'Duplicado correctamente';
+                            $reason = 'Valor tomado de peso_en_seco';
+                            $total_processed++;
+                        } elseif (empty($new_value)){
+                            if (!$test_mode) {
+                                update_post_meta($post->ID, $new_meta, 1);
+                            }
+                            $action = 'Duplicado correctamente';
+                            $reason = 'Valor por defecto asignado';
+                            $new_value = 1;
+                            $total_processed++;
+                        }else {
 
-                    if ($peso_lleno) {
-                        if (!$test_mode) {
-                            update_post_meta($post->ID, $new_meta, $peso_lleno);
+                            $action = 'No duplicado';
+                            $reason = 'No se encontró un valor válido de peso';
                         }
-                        $old_value = $peso_lleno;
-                        $new_value = $peso_lleno;
-                        $action = 'Duplicado correctamente';
-                        $reason = 'Valor tomado de peso_lleno';
-                        $total_processed++;
-                    } elseif ($peso) {
-                        if (!$test_mode) {
-                            update_post_meta($post->ID, $new_meta, $peso);
-                        }
-                        $old_value = $peso;
-                        $new_value = $peso;
-                        $action = 'Duplicado correctamente';
-                        $reason = 'Valor tomado de peso';
-                        $total_processed++;
-                    } elseif ($peso_en_vacio) {
-                        if (!$test_mode) {
-                            update_post_meta($post->ID, $new_meta, $peso_en_vacio);
-                        }
-                        $old_value = $peso_en_vacio;
-                        $new_value = $peso_en_vacio;
-                        $action = 'Duplicado correctamente';
-                        $reason = 'Valor tomado de peso_en_vacio';
-                        $total_processed++;
-                    } elseif ($peso_en_seco) {
-                        if (!$test_mode) {
-                            update_post_meta($post->ID, $new_meta, $peso_en_seco);
-                        }
-                        $old_value = $peso_en_seco;
-                        $new_value = $peso_en_seco;
-                        $action = 'Duplicado correctamente';
-                        $reason = 'Valor tomado de peso_en_seco';
-                        $total_processed++;
-                    } else {
+                    }else{
                         $action = 'No duplicado';
-                        $reason = 'No se encontró un valor válido de peso';
+                        $reason = 'Ya tenia un valor asignado';
                     }
-                }else {
-                    if (!$test_mode) {
-                        update_post_meta($post->ID, $new_meta, $old_value);
+                }else{
+
+                    if (!empty($old_value) && empty($new_value)) {
+                        $new_value_rewrite = $old_value;
+                    }elseif(empty($new_value)){
+                        $new_value_rewrite = 1;
                     }
-                    $new_value = $old_value;
-                    $action = 'Duplicado correctamente';
-                    $total_processed++;
-                }
+
+                    if (!empty($new_value_rewrite)) {
+                        if(!$test_mode) {
+                            update_post_meta($post->ID, $new_meta, $new_value_rewrite);
+                        }
+                        $new_value = $new_value_rewrite;
+                        $action = 'Duplicado correctamente';
+                        $reason = 'Valor por defecto asignado';
+                        $total_processed++;
+                    }else{
+                        $action = 'No duplicado';
+                        $reason = 'Ya tenia un valor asignado';
+                    }
 
 
-                // **1️ Prioridad: Si el nuevo meta ya tiene datos, no sobrescribimos**
-                if (!empty($new_value)) {
-                    $reason = 'Meta nuevo ya tiene un valor';
+
                 }
-                // **2 Prioridad: Si el viejo meta no tiene datos, no hay nada que copiar**
-                elseif (empty($old_value)) {
-                    $reason = 'Meta antiguo vacío';
-                }
-                //3 Prioridad final: Si no encaja en ninguna de las anteriores, "Razón desconocida"**
-                if ($action === 'No duplicado' && empty($reason)) {
-                    $reason = 'Razón desconocida';
-                }
+
 
                 // Guardar log en el archivo CSV con la razón
                 fputcsv($file, [
