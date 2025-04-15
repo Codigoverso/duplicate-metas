@@ -317,7 +317,7 @@ function duplicate_metas_ajax_callback() {
                     preg_match('/(\d+[,\.]?\d*)\s*CV/i', $old_value, $matches);
                     if (!empty($matches[1]) && empty($new_value)) {
                         if (!$test_mode) {
-                            update_post_meta($post->ID, $new_meta, $matches[1]);
+                            update_post_meta($post->ID, $new_meta, $matches[1].' CV');
                         }
                         $new_value = $matches[1];
                         $action = 'Duplicado correctamente';
@@ -399,7 +399,7 @@ function duplicate_metas_ajax_callback() {
                         $reason = 'Ya tenia un valor asignado';
                     }
                 }else{
-
+                    $new_value_rewrite = '';
                     if (!empty($old_value) && empty($new_value)) {
                         $new_value_rewrite = $old_value;
                     }elseif(empty($new_value)){
@@ -419,10 +419,7 @@ function duplicate_metas_ajax_callback() {
                         $reason = 'Ya tenia un valor asignado';
                     }
 
-
-
                 }
-
 
                 // Guardar log en el archivo CSV con la razón
                 fputcsv($file, [
